@@ -11,6 +11,7 @@ a crucial step for making it exponentially harder for malicious entities to use 
 as only those with special knowledge of the keys are able to decrypt information. This
 provides a massive amount of cyber security and safety for systems that utilize data that
 is important to keep hidden from others.
+
 Ultimately, this project addresses the problem of if data is intercepted by
 malicious entities, they can just simply use that information to do whatever they want.
 By encrypting and decrypting with AES, if attackers intercept data, they are ultimately
@@ -18,4 +19,5 @@ unable to use it because only those with specific knowledge of the keys are able
 decrypt and see what the information actually is. This project will provide more
 information about the usage and importance of cryptosystems like AES.
 Scope
+
 This project is going to include a demonstration program showing the encryption
