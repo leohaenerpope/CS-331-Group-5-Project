@@ -1,6 +1,6 @@
 # CS-331-Group-5-Project
 
-Objective
+# Objective
 This project aims to demonstrate the encryption and decryption of a message
 using AES encryption. This will show the different steps of AES encryption and highlight
 how AES usage increases the security within a cyber system and ultimately provides
