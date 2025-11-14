@@ -8,10 +8,21 @@ public class AES {
     private String key;
     private int keyLength;
     private double[][] dataArray;
+    private Matrix mixedColumnMatrix;
     private Matrix dataMatrix;
     
     public AES() {
-
+        this.roundNum = 10;
+        this.key = "";
+        this.keyLength = 128;
+        this.dataArray = new double[4][4];
+        this.mixedColumnMatrix = new Matrix(new double[][]{
+            {2, 3, 1, 1},
+            {1, 2, 3, 1},
+            {1, 1, 2, 3},
+            {3, 1, 1, 2}
+        });
+        this.dataMatrix = new Matrix(dataArray);
     }
 
     public String encrypt(String data, String key) {
@@ -37,7 +48,8 @@ public class AES {
     }
 
     private void MixColumns() {
-        // Placeholder for MixColumns logic
+        dataMatrix = mixedColumnMatrix.times(dataMatrix);
+        dataArray = dataMatrix.getArray();
     }
 
     private void ByteSubstitution() {
