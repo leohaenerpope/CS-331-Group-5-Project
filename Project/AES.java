@@ -7,6 +7,7 @@ public class AES {
     private int roundNum;
     private String key;
     private int keyLength;
+    private double[][] dataArray;
     private Matrix dataMatrix;
     
     public AES() {
@@ -24,7 +25,15 @@ public class AES {
     }
 
     private void ShiftRows() {
-        // Placeholder for ShiftRows logic
+        dataArray = dataMatrix.getArray();
+        for (int i = 1; i < dataArray.length; i++) {
+            double[] newRow = new double[dataArray[i].length];
+            for (int j = 0; j < newRow.length; j++) {
+                newRow[j] = dataArray[i][(j + i) % newRow.length];
+            }
+            dataArray[i] = newRow;
+        }
+        dataMatrix = new Matrix(dataArray);
     }
 
     private void MixColumns() {
