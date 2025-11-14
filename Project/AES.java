@@ -1,11 +1,13 @@
 package Project;
 import Jama.Matrix;
+// Below is the link that describe what methods there are and what they do
+// https://biojava.org/docs/api/org/biojava/nbio/structure/jama/Matrix.html
 
 public class AES {
     private int roundNum;
     private String key;
     private int keyLength;
-    // Matrix variable
+    private Matrix dataMatrix;
     
     public AES() {
 
