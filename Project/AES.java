@@ -5,8 +5,10 @@ import Jama.Matrix;
 
 public class AES {
     private int roundNum;
+    private int currentRoundNum;
     private String key;
     private int keyLength;
+    private KeyManager keyManager;
     private double[][] dataArray;
     private Matrix mixedColumnMatrix;
     private Matrix dataMatrix;
@@ -14,6 +16,7 @@ public class AES {
     
     public AES() {
         this.roundNum = 10;
+        this.currentRoundNum = 0;
         this.key = "";
         this.keyLength = 128;
         this.dataArray = new double[4][4];
@@ -84,6 +87,11 @@ public class AES {
     }
 
     private void AddRoundKey() {
-        // Placeholder for AddRoundKey logic
+        dataArray = dataMatrix.getArray();
+        byte[] roundKeyArray = keyManager.getRoundKey(currentRoundNum);
+        for (byte i:roundKeyArray){
+            dataArray[(int)(i) / 4][(int)(i) % 4] = (int)dataArray[(int)(i) / 4][(int)(i) % 4] ^ i;
+        }
+        dataMatrix = new Matrix(dataArray);
     }
 }
