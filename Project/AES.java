@@ -1,6 +1,6 @@
 package Project;
 import Jama.Matrix;
-// Below is the link that describe what methods there are and what they do
+// Below is the link that describe what methods there are in Jama and what they do
 // https://biojava.org/docs/api/org/biojava/nbio/structure/jama/Matrix.html
 
 public class AES {
@@ -72,7 +72,15 @@ public class AES {
     }
 
     private void ByteSubstitution() {
-        // Placeholder for ByteSubstitution logic
+        dataArray = dataMatrix.getArray();
+        for (int i = 0; i < dataArray.length; i++) {
+            for (int j = 0; j < dataArray[i].length; j++) {
+                int row = (int) (((int)dataArray[i][j] & 0xF0) >> 4); // these bitwise operations may not work correctly, test later
+                int col = (int) ((int)dataArray[i][j] & 0x0F);
+                dataArray[i][j] = byteSubstitutionMatrix.get(row, col);
+            }
+        }
+        dataMatrix = new Matrix(dataArray);
     }
 
     private void AddRoundKey() {
