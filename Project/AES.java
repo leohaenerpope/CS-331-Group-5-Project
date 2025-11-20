@@ -47,12 +47,53 @@ public class AES {
         this.dataMatrix = new Matrix(dataArray);
     }
 
+    // AES Encryption
     public String encrypt(String data, String key) {
-        // Placeholder for AES encryption logic
-        return "encryptedData";
+        this.key = key;
+        this.keyManager = new KeyManager(key);
+        String fullEncryptedData = "";
+        for (int d = 0; d < data.length(); d += 16) {
+            String dataBlock = data.substring(d, Math.min(data.length(), d+16));
+            while (dataBlock.length() < 16) {
+                dataBlock += "\0"; // padding with null characters
+            }
+            this.currentRoundNum = 0;
+            this.dataArray = new double[4][4];
+            for (int i = 0; i < dataBlock.length(); i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = dataBlock.charAt(i);
+            }
+            this.dataMatrix = new Matrix(dataArray);
+            AddRoundKey();
+            for (currentRoundNum = 1; currentRoundNum < roundNum; currentRoundNum++) {
+                ByteSubstitution();
+                ShiftRows();
+                MixColumns();
+                AddRoundKey();
+            }
+            ByteSubstitution();
+            ShiftRows();
+            AddRoundKey();
+
+            // convert matrix back into ciphertext
+            dataArray = dataMatrix.getArray();
+            byte[] cipherBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                cipherBytes[i] = (byte) dataArray[row][col];
+            }
+            
+            // convert ciphertext into base64 string and store in var
+            String encryptedData = java.util.Base64.getEncoder().encodeToString(cipherBytes);
+            
+            fullEncryptedData += encryptedData;
+        }
+        return fullEncryptedData;
     }
 
-    // AES Decrytpion 
+    // AES Decryption 
     // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
     public String decrypt(String encryptedData, String key) {
