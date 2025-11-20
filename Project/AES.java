@@ -101,6 +101,8 @@ public class AES {
         return fullEncryptedData;
     }
 
+
+
     // AES Decryption 
     // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
@@ -110,43 +112,50 @@ public class AES {
         this.keyManager = new KeyManager(key);
         this.currentRoundNum = roundNum; // start at round 10 (final)
 
-        //placeholder for encrypted data
-        byte[] cipherBytes = java.util.Base64.getDecoder().decode(encryptedData);
-        
-        // Load cipher into 4x4 matrix
-        for (int i = 0; i < 16; i++) {
-            int row = i % 4;
-            int col = i / 4;
-            dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
-        }
-        dataMatrix = new Matrix(dataArray);
-        AddRoundKey(); // final round key
+        String fullDecryptedData = "";
+        for (int d = 0; d < encryptedData.length(); d += 16) {
+            String dataBlock = encryptedData.substring(d, Math.min(encryptedData.length(), d+16));
+            while (dataBlock.length() < 16) {
+                dataBlock += "\0"; // padding with null characters
+            }
+            byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
+            
+            // Load cipher into 4x4 matrix
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
+            }
+            dataMatrix = new Matrix(dataArray);
+            AddRoundKey(); // final round key
 
-        // inverse transformation, for final [inverse shiftrows + inverse subbytes]
-        InvShiftRows();
-        InvByteSubstitution();
-
-        // run the decryption for round 1-9
-        for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
-            AddRoundKey();
-            InvMixColumns();
+            // inverse transformation, for final [inverse shiftrows + inverse subbytes]
             InvShiftRows();
             InvByteSubstitution();
-        }
-        AddRoundKey(); //round 0 key
 
-        // convert matrix back into plaintext
-        dataArray = dataMatrix.getArray();
-        byte[] plainBytes = new byte[16];
-        for (int i = 0; i < 16; i++) {
-            int row = i % 4;
-            int col = i / 4;
-            plainBytes[i] = (byte) dataArray[row][col];
+            // run the decryption for round 1-9
+            for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
+                AddRoundKey();
+                InvMixColumns();
+                InvShiftRows();
+                InvByteSubstitution();
+            }
+            AddRoundKey(); //round 0 key
+
+            // convert matrix back into plaintext
+            dataArray = dataMatrix.getArray();
+            byte[] plainBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                plainBytes[i] = (byte) dataArray[row][col];
+            }
+            
+            // convert plaintext into str and store in var
+            String decryptedData = new String(plainBytes).trim();
+            fullDecryptedData += decryptedData;
         }
-        
-        // convert plaintext into str and store in var
-        String decryptedData = new String(plainBytes).trim();
-        return decryptedData;
+        return fullDecryptedData;
     }
 
 
