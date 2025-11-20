@@ -149,6 +149,12 @@ public class AES {
         return decryptedData;
     }
 
+
+
+
+
+    // AES ENCRYPTION HELPERS
+    // shift each row left by row index
     private void ShiftRows() {
         dataArray = dataMatrix.getArray();
         for (int i = 1; i < dataArray.length; i++) {
@@ -161,11 +167,13 @@ public class AES {
         dataMatrix = new Matrix(dataArray);
     }
 
+    // multiplies data matrix by mixcolumn matrix
     private void MixColumns() {
         dataMatrix = mixedColumnMatrix.times(dataMatrix);
         dataArray = dataMatrix.getArray();
     }
 
+    // substitute each byte in data matrix using byte substitution matrix
     private void ByteSubstitution() {
         dataArray = dataMatrix.getArray();
         for (int i = 0; i < dataArray.length; i++) {
@@ -178,6 +186,7 @@ public class AES {
         dataMatrix = new Matrix(dataArray);
     }
 
+    // Adds round key obtained from key manager to data matrix using XOR
     private void AddRoundKey() {
         dataArray = dataMatrix.getArray();
         byte[] roundKeyArray = keyManager.getRoundKey(currentRoundNum);
@@ -187,7 +196,11 @@ public class AES {
         dataMatrix = new Matrix(dataArray);
     }
 
-    // helpers for AES decryption section
+
+
+
+
+    // AES DECRYPTION HELPERS
     // shift each row right by row index, would reverse the row shifting in the AES encryption section
     private void InvShiftRows() {
         dataArray = dataMatrix.getArray();
