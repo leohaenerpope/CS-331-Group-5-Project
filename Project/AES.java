@@ -48,6 +48,14 @@ public class AES {
     }
 
     // AES Encryption
+    /*
+     * Takes in plaintext data and key as strings
+     * Returns encrypted data as a base64 encoded string
+     * Processes data in 16-byte blocks, padding with null characters if necessary
+     * @param data The plaintext data to be encrypted
+     * @param key The encryption key
+     * @return The encrypted data as a base64 encoded string
+     */
     public String encrypt(String data, String key) {
         this.key = key;
         this.keyManager = new KeyManager(key);
