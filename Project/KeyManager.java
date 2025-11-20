@@ -25,7 +25,8 @@ public class KeyManager {
     /**
      * Constructor for making a KeyManager with a non-specified key string.
      * 
-     * Uses a pre-determined key string of length 16. (16 chars = 16 * 8 bytes per char = 128 bit size)
+     * Uses a pre-determined key string of length 16. (16 chars = 16 * 8 bits per char = 128 bit size)
+     * For Java and I guess in this project too, we are just doing 1 char = 8 bits
      */
     public KeyManager() {
         this.key = getByteKeyFromString("0123456789abcdef"); // THIS MUST BE A STRING OF LENGTH 32
