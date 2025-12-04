@@ -1,5 +1,6 @@
 package Project;
 import Jama.Matrix;
+import java.nio.charset.StandardCharsets;
 // Below is the link that describe what methods there are in Jama and what they do
 // https://biojava.org/docs/api/org/biojava/nbio/structure/jama/Matrix.html
 
@@ -57,48 +58,68 @@ public class AES {
      * @return The encrypted data as a base64 encoded string
      */
     public String encrypt(String data, String key) {
+        // Save key information
         this.key = key;
         this.keyManager = new KeyManager(key);
-        String fullEncryptedData = "";
-        for (int d = 0; d < data.length(); d += 16) {
-            String dataBlock = data.substring(d, Math.min(data.length(), d+16));
-            while (dataBlock.length() < 16) {
-                dataBlock += "\0"; // padding with null characters
-            }
+
+        // 1. Plain text converted to UTF-8 bytes
+        byte[] plainBytes = data.getBytes(StandardCharsets.UTF_8);
+
+        // 2. PKCS#7 padding to 16-byte alignment
+        int blockSize = 16;               // 128 bits
+        int remainder = plainBytes.length % blockSize;
+        int padLen = (remainder == 0) ? blockSize : (blockSize - remainder);
+
+        byte[] padded = new byte[plainBytes.length + padLen];
+        System.arraycopy(plainBytes, 0, padded, 0, plainBytes.length);
+        for (int i = plainBytes.length; i < padded.length; i++) {
+            padded[i] = (byte) padLen;    // The value of each padding byte is padLen.
+        }
+
+        // 3. Encrypt per block (ECB: Each block uses the same key, independent of others)
+        byte[] cipherAll = new byte[padded.length];
+
+        for (int offset = 0; offset < padded.length; offset += blockSize) {
+            // Reset Wheel Number & Data Matrix
             this.currentRoundNum = 0;
             this.dataArray = new double[4][4];
-            for (int i = 0; i < dataBlock.length(); i++) {
+
+            // Fill the 16 bytes into the 4x4 state matrix (column-major order)
+            for (int i = 0; i < blockSize; i++) {
                 int row = i % 4;
                 int col = i / 4;
-                dataArray[row][col] = dataBlock.charAt(i);
+                // & 0xFF to make it unsigned 0-255 in double
+                dataArray[row][col] = padded[offset + i] & 0xFF;
             }
             this.dataMatrix = new Matrix(dataArray);
+
+            // Round 0: AddRoundKey
             AddRoundKey();
+
+            // Round 1-9: SubBytes + ShiftRows + MixColumns + AddRoundKey
             for (currentRoundNum = 1; currentRoundNum < roundNum; currentRoundNum++) {
                 ByteSubstitution();
                 ShiftRows();
                 MixColumns();
                 AddRoundKey();
             }
+
+            // Round 10: SubBytes + ShiftRows + AddRoundKey （没有 MixColumns）
             ByteSubstitution();
             ShiftRows();
             AddRoundKey();
 
-            // convert matrix back into ciphertext
+            // Extract this block of ciphertext bytes from the matrix.
             dataArray = dataMatrix.getArray();
-            byte[] cipherBytes = new byte[16];
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < blockSize; i++) {
                 int row = i % 4;
                 int col = i / 4;
-                cipherBytes[i] = (byte) dataArray[row][col];
+                cipherAll[offset + i] = (byte) dataArray[row][col];
             }
-            
-            // convert ciphertext into base64 string and store in var
-            String encryptedData = java.util.Base64.getEncoder().encodeToString(cipherBytes);
-            
-            fullEncryptedData += encryptedData;
         }
-        return fullEncryptedData;
+
+        // 4. Base64-encode the entire ciphertext in one go.
+        return java.util.Base64.getEncoder().encodeToString(cipherAll);
     }
 
 
@@ -107,55 +128,79 @@ public class AES {
     // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
     public String decrypt(String encryptedData, String key) {
-        // use key from key manager
+         // Configure Key Information
         this.key = key;
         this.keyManager = new KeyManager(key);
-        this.currentRoundNum = roundNum; // start at round 10 (final)
+        this.currentRoundNum = roundNum; // Decryption begins from the final round.
 
-        String fullDecryptedData = "";
-        for (int d = 0; d < encryptedData.length(); d += 16) {
-            String dataBlock = encryptedData.substring(d, Math.min(encryptedData.length(), d+16));
-            while (dataBlock.length() < 16) {
-                dataBlock += "\0"; // padding with null characters
-            }
-            byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
-            
-            // Load cipher into 4x4 matrix
-            for (int i = 0; i < 16; i++) {
+        // 1. Base64 decoding yields the complete ciphertext byte array.
+        byte[] cipherBytesAll = java.util.Base64.getDecoder().decode(encryptedData);
+
+        int blockSize = 16;
+        if (cipherBytesAll.length % blockSize != 0) {
+            throw new IllegalArgumentException("Ciphertext length is not a multiple of 16 bytes");
+        }
+
+        byte[] plainWithPad = new byte[cipherBytesAll.length];
+
+        // 2. Block-by-block decryption
+        for (int offset = 0; offset < cipherBytesAll.length; offset += blockSize) {
+            // Load the current block into the matrix
+            this.dataArray = new double[4][4];
+            for (int i = 0; i < blockSize; i++) {
                 int row = i % 4;
                 int col = i / 4;
-                dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
+                dataArray[row][col] = cipherBytesAll[offset + i] & 0xFF;
             }
-            dataMatrix = new Matrix(dataArray);
-            AddRoundKey(); // final round key
+            this.dataMatrix = new Matrix(dataArray);
 
-            // inverse transformation, for final [inverse shiftrows + inverse subbytes]
+            // Decryption Process:
+            // First add the final round of round keys.
+            AddRoundKey(); // round 10 key
+
+            // Reverse Last Round：InvShiftRows + InvSubBytes
             InvShiftRows();
             InvByteSubstitution();
 
-            // run the decryption for round 1-9
+            // Do another 9 to 1 round：AddRoundKey + InvMixColumns + InvShiftRows + InvByteSubstitution
             for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
                 AddRoundKey();
                 InvMixColumns();
                 InvShiftRows();
                 InvByteSubstitution();
             }
-            AddRoundKey(); //round 0 key
 
-            // convert matrix back into plaintext
+            // Finally add the round 0 round key
+            AddRoundKey();
+
+            // Extract the plaintext bytes from this block
             dataArray = dataMatrix.getArray();
-            byte[] plainBytes = new byte[16];
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < blockSize; i++) {
                 int row = i % 4;
                 int col = i / 4;
-                plainBytes[i] = (byte) dataArray[row][col];
+                plainWithPad[offset + i] = (byte) dataArray[row][col];
             }
-            
-            // convert plaintext into str and store in var
-            String decryptedData = new String(plainBytes).trim();
-            fullDecryptedData += decryptedData;
         }
-        return fullDecryptedData;
+
+        // 3. Remove PKCS#7 padding
+        if (plainWithPad.length == 0) {
+            return "";
+        }
+        int padLen = plainWithPad[plainWithPad.length - 1] & 0xFF;
+        if (padLen <= 0 || padLen > blockSize) {
+            throw new IllegalArgumentException("Invalid PKCS#7 padding");
+        }
+
+        int plainLen = plainWithPad.length - padLen;
+        if (plainLen < 0) {
+            throw new IllegalArgumentException("Invalid PKCS#7 padding length");
+        }
+
+        byte[] plainBytes = new byte[plainLen];
+        System.arraycopy(plainWithPad, 0, plainBytes, 0, plainLen);
+
+        // 4. Convert to a string using UTF-8 encoding and return it.
+        return new String(plainBytes, StandardCharsets.UTF_8);
     }
 
 
