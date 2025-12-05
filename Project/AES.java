@@ -7,27 +7,22 @@ import Jama.Matrix;
 public class AES {
     private int roundNum;
     private int currentRoundNum;
-    private String key;
-    private int keyLength;
     private KeyManager keyManager;
     private double[][] dataArray;
-    private Matrix mixedColumnMatrix;
+    private double[][] mixedColumnArr = {
+        {2, 3, 1, 1},
+        {1, 2, 3, 1},
+        {1, 1, 2, 3},
+        {3, 1, 1, 2}
+    };
     private Matrix dataMatrix;
     private Matrix byteSubstitutionMatrix;
 
     public AES() {
         this.roundNum = 10;
         this.currentRoundNum = 0;
-        this.key = "";
-        this.keyLength = 128;
+        
         this.dataArray = new double[4][4];
-
-        this.mixedColumnMatrix = new Matrix(new double[][]{
-            {2, 3, 1, 1},
-            {1, 2, 3, 1},
-            {1, 1, 2, 3},
-            {3, 1, 1, 2}
-        });
 
         this.byteSubstitutionMatrix = new Matrix(new double[][]{// Used AI to help auto fill these; don't trust them too much
             { 0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76 },
@@ -61,7 +56,6 @@ public class AES {
      * @return The encrypted data as a base64 encoded string
      */
     public String encrypt(String data, String key) {
-        this.key = key;
         this.keyManager = new KeyManager(key);
         String fullEncryptedData = "";
         for (int d = 0; d < data.length(); d += 16) {
@@ -110,7 +104,6 @@ public class AES {
     // Added a helper section down at line 141 from readability
     public String decrypt(String encryptedData, String key) {
         // use key from key manager
-        this.key = key;
         this.keyManager = new KeyManager(key);
         this.currentRoundNum = roundNum; // start at round 10 (final)
 
@@ -120,10 +113,6 @@ public class AES {
             while (dataBlock.length() < 16) {
                 dataBlock += "\0"; // padding with null characters
             }
-            for (byte b : dataBlock.getBytes()) {
-                System.out.printf("%02X ", b);
-            }
-            System.out.println();
             
             byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
             
@@ -172,10 +161,10 @@ public class AES {
     // shift each row left by row index
     private void ShiftRows() {
         dataArray = dataMatrix.getArray();
-        for (int i = 1; i < dataArray.length; i++) {
-            double[] newRow = new double[dataArray[i].length];
-            for (int j = 0; j < newRow.length; j++) {
-                newRow[j] = dataArray[i][(j + i) % newRow.length];
+        for (int i = 1; i < 4; i++) {
+            double[] newRow = new double[4];
+            for (int j = 0; j < 4; j++) {
+                newRow[j] = dataArray[i][(j + i) % 4];
             }
             dataArray[i] = newRow;
         }
@@ -184,18 +173,34 @@ public class AES {
 
     // multiplies data matrix by mixcolumn matrix
     private void MixColumns() {
-        dataMatrix = mixedColumnMatrix.times(dataMatrix);
         dataArray = dataMatrix.getArray();
+        double[][] res = new double[4][4];
+
+        // handle multiplication of the columns, using multiplication function and XOR
+        for (int c = 0; c < 4; c++) {
+            for (int r = 0; r < 4; r++) {
+                int val = (int)(
+                    gmul((int)dataArray[0][c], (int)mixedColumnArr[r][0]) ^
+                    gmul((int)dataArray[1][c], (int)mixedColumnArr[r][1]) ^
+                    gmul((int)dataArray[2][c], (int)mixedColumnArr[r][2]) ^
+                    gmul((int)dataArray[3][c], (int)mixedColumnArr[r][3])
+                ) & 0xFF;
+                res[r][c] = val;
+            }
+        }
+        dataArray = res;
+        dataMatrix = new Matrix(dataArray);
     }
 
 
     // substitute each byte in data matrix using byte substitution matrix
     private void ByteSubstitution() {
         dataArray = dataMatrix.getArray();
-        for (int i = 0; i < dataArray.length; i++) {
-            for (int j = 0; j < dataArray[i].length; j++) {
-                int row = (int)(((int)dataArray[i][j] & 0xF0) >> 4);// these bitwise operations may not work correctly, test later
-                int col = (int)((int)dataArray[i][j] & 0x0F);
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                int val = (int)dataArray[i][j];
+                int row = (val & 0xF0) >> 4;
+                int col = val & 0x0F;
                 dataArray[i][j] = byteSubstitutionMatrix.get(row, col);
             }
         }
@@ -206,17 +211,15 @@ public class AES {
     // Adds round key obtained from key manager to data matrix using XOR
     private void AddRoundKey() {
         dataArray = dataMatrix.getArray();
-        byte[] roundKeyArray = keyManager.getRoundKey(currentRoundNum);
+        byte[] roundKey = keyManager.getRoundKey(currentRoundNum);
 
-        for (int idx = 0; idx < roundKeyArray.length; idx++) {
-            int row = idx % 4;
-            int col = idx / 4;
-
-            int original = (int)dataArray[row][col];
-            int keyByte = roundKeyArray[idx] & 0xFF;
-
-            dataArray[row][col] = original ^ keyByte;
+        int idx = 0;
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                dataArray[row][col] = ((int)dataArray[row][col]) ^ (roundKey[idx++] & 0xFF);
+            }
         }
+
         dataMatrix = new Matrix(dataArray);
     }
 
@@ -228,10 +231,10 @@ public class AES {
     // shift each row right by row index, would reverse the row shifting in the AES encryption section
     private void InvShiftRows() {
         dataArray = dataMatrix.getArray();
-        for (int i = 1; i < dataArray.length; i++) {
-            double[] newRow = new double[dataArray[i].length];
-            for (int j = 0; j < newRow.length; j++) {
-                newRow[(j + i) % newRow.length] = dataArray[i][j];
+        for (int i = 1; i < 4; i++) {
+            double[] newRow = new double[4];
+            for (int j = 0; j < 4; j++) {
+                newRow[(j + i) % 4] = dataArray[i][j];
             }
             dataArray[i] = newRow;
         }
@@ -260,10 +263,11 @@ public class AES {
         };
 
         dataArray = dataMatrix.getArray();
-        for (int i = 0; i < dataArray.length; i++) {
-            for (int j = 0; j < dataArray[i].length; j++) {
-                int row = (int)(((int)dataArray[i][j] & 0xF0) >> 4);
-                int col = (int)((int)dataArray[i][j] & 0x0F);
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                int val = (int)dataArray[i][j];
+                int row = (val & 0xF0) >> 4;
+                int col = val & 0x0F;
                 dataArray[i][j] = invSBox[row][col];
             }
         }
@@ -272,14 +276,63 @@ public class AES {
 
     // mulpties matrix by inverse mixcolum matrix
     private void InvMixColumns() {
-        Matrix invMix = new Matrix(new double[][]{
-            {14, 11, 13, 9},
-            {9, 14, 11, 13},
-            {13, 9, 14, 11},
-            {11, 13, 9, 14}
-        });
-        dataMatrix = invMix.times(dataMatrix);
+        double[][] inv = {
+            {14,11,13,9},
+            {9,14,11,13},
+            {13,9,14,11},
+            {11,13,9,14}
+        };
         dataArray = dataMatrix.getArray();
+        double[][] newArr = new double[4][4];
+
+        // also using the multiplication function like in regular mix columns
+        for (int c = 0; c < 4; c++) {
+            for (int r = 0; r < 4; r++) {
+                int val = (int)(
+                    gmul((int)dataArray[0][c], (int)inv[r][0]) ^
+                    gmul((int)dataArray[1][c], (int)inv[r][1]) ^
+                    gmul((int)dataArray[2][c], (int)inv[r][2]) ^
+                    gmul((int)dataArray[3][c], (int)inv[r][3])
+                ) & 0xFF;
+                newArr[r][c] = val;
+            }
+        }
+        dataArray = newArr;
+        dataMatrix = new Matrix(dataArray);
+    }
+
+    /**
+     * Galois Field Multiplication that is used to multiply the bytes in the
+     * MixColumns and InverseMixColumns functions
+     * 
+     * When AES multiplies bytes in the mix columns function,
+     * it uses this type of multiplication instead of regular multiplication
+     * 
+     * It is basically just like a form of binary multiplication
+     * but using XOR as addition/subtraction and reducing by a modulus to make
+     * sure result stays below 8 bits
+     * 
+     * For more info
+     * https://www.youtube.com/watch?v=oPjkfvuqqv4
+     * 
+     * @param a int of 8 bits to be multiplied
+     * @param b int of 8 bits to be multiplied
+     * @return result of Galois Field Multiplication
+     */
+    private int gmul(int a, int b) {
+        int p = 0;
+        for (int i = 0; i < 8; i++) {
+            if ((b & 1) != 0) {
+                p ^= a;
+            }
+            boolean highBit = (a & 0x80) != 0; // checks for if highest bit is 1 (result becomes larger than 8 bits, so subtract modulus)
+            a = (a << 1) & 0xFF;
+            if (highBit) {
+                a ^= 0x1b; // this subtracts the modulus, XOR is the same as subtraction in Galois Field
+            }
+            b >>= 1;
+        }
+        return p & 0xFF;
     }
 }
 
