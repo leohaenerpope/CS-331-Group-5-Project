@@ -161,19 +161,43 @@ public class KeyManager {
      */
     private byte keyScheduleRoundCoefficientFunction(byte inputByte, int round){
         // Select round coefficient based off of the round. See Key addition and key schedule in AESPDF.pdf
-        byte xorByte = switch (round) {
-            case 1 -> (byte)0b00000001;
-            case 2 -> (byte)0b00000010;
-            case 3 -> (byte)0b00000100;
-            case 4 -> (byte)0b00001000;
-            case 5 -> (byte)0b00010000;
-            case 6 -> (byte)0b00100000;
-            case 7 -> (byte)0b01000000;
-            case 8 -> (byte)0b10000000;
-            case 9 -> (byte)0b00011011;
-            case 10 -> (byte)0b00110110;
-            default -> (byte)0b00000000;
-        };
+        byte xorByte;
+        switch (round) {
+            case 1:
+                xorByte = (byte)0b00000001;
+                break;
+            case 2:
+                xorByte = (byte)0b00000010;
+                break;
+            case 3:
+                xorByte = (byte)0b00000100;
+                break;
+            case 4:
+                xorByte = (byte)0b00001000;
+                break;
+            case 5:
+                xorByte = (byte)0b00010000;
+                break;
+            case 6:
+                xorByte = (byte)0b00100000;
+                break;
+            case 7:
+                xorByte = (byte)0b01000000;
+                break;
+            case 8:
+                xorByte = (byte)0b10000000;
+                break;
+            case 9:
+                xorByte = (byte)0b00011011;
+                break;
+            case 10:
+                xorByte = (byte)0b00110110;
+                break;
+            default:
+                xorByte = (byte)0b00000000;
+                break;
+        }
+
         return (byte)(inputByte ^ xorByte);
     }
 

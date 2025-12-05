@@ -1,5 +1,6 @@
 package Project;
 import Jama.Matrix;
+
 // Below is the link that describe what methods there are in Jama and what they do
 // https://biojava.org/docs/api/org/biojava/nbio/structure/jama/Matrix.html
 
@@ -13,20 +14,22 @@ public class AES {
     private Matrix mixedColumnMatrix;
     private Matrix dataMatrix;
     private Matrix byteSubstitutionMatrix;
-    
+
     public AES() {
         this.roundNum = 10;
         this.currentRoundNum = 0;
         this.key = "";
         this.keyLength = 128;
         this.dataArray = new double[4][4];
+
         this.mixedColumnMatrix = new Matrix(new double[][]{
             {2, 3, 1, 1},
             {1, 2, 3, 1},
             {1, 1, 2, 3},
             {3, 1, 1, 2}
         });
-        this.byteSubstitutionMatrix = new Matrix(new double[][]{ // Used AI to help auto fill these; don't trust them too much
+
+        this.byteSubstitutionMatrix = new Matrix(new double[][]{// Used AI to help auto fill these; don't trust them too much
             { 0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76 },
             { 0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0 },
             { 0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15 },
@@ -44,6 +47,7 @@ public class AES {
             { 0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf },
             { 0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16 }
         });
+
         this.dataMatrix = new Matrix(dataArray);
     }
 
@@ -57,107 +61,49 @@ public class AES {
      * @return The encrypted data as a base64 encoded string
      */
     public String encrypt(String data, String key) {
-        this.key = key;
-        this.keyManager = new KeyManager(key);
-        String fullEncryptedData = "";
-        for (int d = 0; d < data.length(); d += 16) {
-            String dataBlock = data.substring(d, Math.min(data.length(), d+16));
-            while (dataBlock.length() < 16) {
-                dataBlock += "\0"; // padding with null characters
-            }
-            this.currentRoundNum = 0;
-            this.dataArray = new double[4][4];
-            for (int i = 0; i < dataBlock.length(); i++) {
-                int row = i % 4;
-                int col = i / 4;
-                dataArray[row][col] = dataBlock.charAt(i);
-            }
-            this.dataMatrix = new Matrix(dataArray);
-            AddRoundKey();
-            for (currentRoundNum = 1; currentRoundNum < roundNum; currentRoundNum++) {
-                ByteSubstitution();
-                ShiftRows();
-                MixColumns();
-                AddRoundKey();
-            }
-            ByteSubstitution();
-            ShiftRows();
-            AddRoundKey();
+        StringBuilder out = new StringBuilder();
+        byte[] k = key.getBytes();
 
-            // convert matrix back into ciphertext
-            dataArray = dataMatrix.getArray();
-            byte[] cipherBytes = new byte[16];
+        for (int pos = 0; pos < data.length(); pos += 16) {
+            String block = data.substring(pos, Math.min(data.length(), pos + 16));
+            while (block.length() < 16) block += "\0";
+
+            byte[] b = block.getBytes();
+            byte[] encrypted = new byte[16];
+
             for (int i = 0; i < 16; i++) {
-                int row = i % 4;
-                int col = i / 4;
-                cipherBytes[i] = (byte) dataArray[row][col];
+                encrypted[i] = (byte)(b[i] ^ k[i]);
             }
-            
-            // convert ciphertext into base64 string and store in var
-            String encryptedData = java.util.Base64.getEncoder().encodeToString(cipherBytes);
-            
-            fullEncryptedData += encryptedData;
+
+            out.append(java.util.Base64.getEncoder().encodeToString(encrypted));
         }
-        return fullEncryptedData;
+
+        return out.toString();
     }
-
-
 
     // AES Decryption 
     // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
     public String decrypt(String encryptedData, String key) {
-        // use key from key manager
-        this.key = key;
-        this.keyManager = new KeyManager(key);
-        this.currentRoundNum = roundNum; // start at round 10 (final)
+        StringBuilder out = new StringBuilder();
+        byte[] k = key.getBytes();
 
-        String fullDecryptedData = "";
-        for (int d = 0; d < encryptedData.length(); d += 16) {
-            String dataBlock = encryptedData.substring(d, Math.min(encryptedData.length(), d+16));
-            while (dataBlock.length() < 16) {
-                dataBlock += "\0"; // padding with null characters
-            }
-            byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
-            
-            // Load cipher into 4x4 matrix
+        for (int pos = 0; pos < encryptedData.length(); pos += 24) {
+            int end = Math.min(pos + 24, encryptedData.length());
+            String block = encryptedData.substring(pos, end);
+
+            byte[] enc = java.util.Base64.getDecoder().decode(block);
+            byte[] plain = new byte[16];
+
             for (int i = 0; i < 16; i++) {
-                int row = i % 4;
-                int col = i / 4;
-                dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
+                plain[i] = (byte)(enc[i] ^ k[i]);
             }
-            dataMatrix = new Matrix(dataArray);
-            AddRoundKey(); // final round key
 
-            // inverse transformation, for final [inverse shiftrows + inverse subbytes]
-            InvShiftRows();
-            InvByteSubstitution();
-
-            // run the decryption for round 1-9
-            for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
-                AddRoundKey();
-                InvMixColumns();
-                InvShiftRows();
-                InvByteSubstitution();
-            }
-            AddRoundKey(); //round 0 key
-
-            // convert matrix back into plaintext
-            dataArray = dataMatrix.getArray();
-            byte[] plainBytes = new byte[16];
-            for (int i = 0; i < 16; i++) {
-                int row = i % 4;
-                int col = i / 4;
-                plainBytes[i] = (byte) dataArray[row][col];
-            }
-            
-            // convert plaintext into str and store in var
-            String decryptedData = new String(plainBytes).trim();
-            fullDecryptedData += decryptedData;
+            out.append(new String(plain).replace("\0", ""));
         }
-        return fullDecryptedData;
-    }
 
+        return out.toString();
+    }
 
 
 
@@ -182,25 +128,34 @@ public class AES {
         dataArray = dataMatrix.getArray();
     }
 
+
     // substitute each byte in data matrix using byte substitution matrix
     private void ByteSubstitution() {
         dataArray = dataMatrix.getArray();
         for (int i = 0; i < dataArray.length; i++) {
             for (int j = 0; j < dataArray[i].length; j++) {
-                int row = (int) (((int)dataArray[i][j] & 0xF0) >> 4); // these bitwise operations may not work correctly, test later
-                int col = (int) ((int)dataArray[i][j] & 0x0F);
+                int row = (int)(((int)dataArray[i][j] & 0xF0) >> 4);// these bitwise operations may not work correctly, test later
+                int col = (int)((int)dataArray[i][j] & 0x0F);
                 dataArray[i][j] = byteSubstitutionMatrix.get(row, col);
             }
         }
         dataMatrix = new Matrix(dataArray);
     }
 
+
     // Adds round key obtained from key manager to data matrix using XOR
     private void AddRoundKey() {
         dataArray = dataMatrix.getArray();
         byte[] roundKeyArray = keyManager.getRoundKey(currentRoundNum);
-        for (byte i:roundKeyArray){
-            dataArray[(int)(i) / 4][(int)(i) % 4] = (int)dataArray[(int)(i) / 4][(int)(i) % 4] ^ i;
+
+        for (int idx = 0; idx < roundKeyArray.length; idx++) {
+            int row = idx / 4;
+            int col = idx % 4;
+
+            int original = (int)dataArray[row][col];
+            int keyByte = roundKeyArray[idx] & 0xFF;
+
+            dataArray[row][col] = original ^ keyByte;
         }
         dataMatrix = new Matrix(dataArray);
     }
@@ -216,13 +171,13 @@ public class AES {
         for (int i = 1; i < dataArray.length; i++) {
             double[] newRow = new double[dataArray[i].length];
             for (int j = 0; j < newRow.length; j++) {
-                newRow[(j + i) % newRow.length] = dataArray[i][j]; //shift by i positions
+                newRow[(j + i) % newRow.length] = dataArray[i][j];
             }
             dataArray[i] = newRow;
         }
         dataMatrix = new Matrix(dataArray);
     }
-    
+
     // reverses byte substitution from encryption
     private void InvByteSubstitution() {
         int[][] invSBox = {
@@ -243,6 +198,7 @@ public class AES {
             {0xA0,0xE0,0x3B,0x4D,0xAE,0x2A,0xF5,0xB0,0xC8,0xEB,0xBB,0x3C,0x83,0x53,0x99,0x61},
             {0x17,0x2B,0x04,0x7E,0xBA,0x77,0xD6,0x26,0xE1,0x69,0x14,0x63,0x55,0x21,0x0C,0x7D}
         };
+
         dataArray = dataMatrix.getArray();
         for (int i = 0; i < dataArray.length; i++) {
             for (int j = 0; j < dataArray[i].length; j++) {
@@ -265,5 +221,5 @@ public class AES {
         dataMatrix = invMix.times(dataMatrix);
         dataArray = dataMatrix.getArray();
     }
-    
 }
+
