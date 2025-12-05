@@ -61,48 +61,108 @@ public class AES {
      * @return The encrypted data as a base64 encoded string
      */
     public String encrypt(String data, String key) {
-        StringBuilder out = new StringBuilder();
-        byte[] k = key.getBytes();
-
-        for (int pos = 0; pos < data.length(); pos += 16) {
-            String block = data.substring(pos, Math.min(data.length(), pos + 16));
-            while (block.length() < 16) block += "\0";
-
-            byte[] b = block.getBytes();
-            byte[] encrypted = new byte[16];
-
-            for (int i = 0; i < 16; i++) {
-                encrypted[i] = (byte)(b[i] ^ k[i]);
+        this.key = key;
+        this.keyManager = new KeyManager(key);
+        String fullEncryptedData = "";
+        for (int d = 0; d < data.length(); d += 16) {
+            String dataBlock = data.substring(d, Math.min(data.length(), d+16));
+            while (dataBlock.length() < 16) {
+                dataBlock += "\0"; // padding with null characters
             }
+            this.currentRoundNum = 0;
+            this.dataArray = new double[4][4];
+            for (int i = 0; i < dataBlock.length(); i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = dataBlock.charAt(i);
+            }
+            this.dataMatrix = new Matrix(dataArray);
+            AddRoundKey();
+            for (currentRoundNum = 1; currentRoundNum < roundNum; currentRoundNum++) {
+                ByteSubstitution();
+                ShiftRows();
+                MixColumns();
+                AddRoundKey();
+            }
+            ByteSubstitution();
+            ShiftRows();
+            AddRoundKey();
 
-            out.append(java.util.Base64.getEncoder().encodeToString(encrypted));
+            // convert matrix back into ciphertext
+            dataArray = dataMatrix.getArray();
+            byte[] cipherBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                cipherBytes[i] = (byte) dataArray[row][col];
+            }
+            
+            // convert ciphertext into base64 string and store in var
+            String encryptedData = java.util.Base64.getEncoder().encodeToString(cipherBytes);
+            
+            fullEncryptedData += encryptedData;
         }
-
-        return out.toString();
+        return fullEncryptedData;
     }
 
     // AES Decryption 
     // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
     public String decrypt(String encryptedData, String key) {
-        StringBuilder out = new StringBuilder();
-        byte[] k = key.getBytes();
+        // use key from key manager
+        this.key = key;
+        this.keyManager = new KeyManager(key);
+        this.currentRoundNum = roundNum; // start at round 10 (final)
 
-        for (int pos = 0; pos < encryptedData.length(); pos += 24) {
-            int end = Math.min(pos + 24, encryptedData.length());
-            String block = encryptedData.substring(pos, end);
-
-            byte[] enc = java.util.Base64.getDecoder().decode(block);
-            byte[] plain = new byte[16];
-
-            for (int i = 0; i < 16; i++) {
-                plain[i] = (byte)(enc[i] ^ k[i]);
+        String fullDecryptedData = "";
+        for (int d = 0; d < encryptedData.length(); d += 24) {
+            String dataBlock = encryptedData.substring(d, Math.min(encryptedData.length(), d+24));
+            while (dataBlock.length() < 16) {
+                dataBlock += "\0"; // padding with null characters
             }
+            for (byte b : dataBlock.getBytes()) {
+                System.out.printf("%02X ", b);
+            }
+            System.out.println();
+            
+            byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
+            
+            // Load cipher into 4x4 matrix
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
+            }
+            dataMatrix = new Matrix(dataArray);
+            AddRoundKey(); // final round key
 
-            out.append(new String(plain).replace("\0", ""));
+            // inverse transformation, for final [inverse shiftrows + inverse subbytes]
+            InvShiftRows();
+            InvByteSubstitution();
+
+            // run the decryption for round 1-9
+            for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
+                AddRoundKey();
+                InvMixColumns();
+                InvShiftRows();
+                InvByteSubstitution();
+            }
+            AddRoundKey(); //round 0 key
+
+            // convert matrix back into plaintext
+            dataArray = dataMatrix.getArray();
+            byte[] plainBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                plainBytes[i] = (byte) dataArray[row][col];
+            }
+            
+            // convert plaintext into str and store in var
+            String decryptedData = new String(plainBytes).trim();
+            fullDecryptedData += decryptedData;
         }
-
-        return out.toString();
+        return fullDecryptedData;
     }
 
 
@@ -149,8 +209,8 @@ public class AES {
         byte[] roundKeyArray = keyManager.getRoundKey(currentRoundNum);
 
         for (int idx = 0; idx < roundKeyArray.length; idx++) {
-            int row = idx / 4;
-            int col = idx % 4;
+            int row = idx % 4;
+            int col = idx / 4;
 
             int original = (int)dataArray[row][col];
             int keyByte = roundKeyArray[idx] & 0xFF;
