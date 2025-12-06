@@ -57,6 +57,9 @@ public class AES {
      */
     public String encrypt(String data, String key) {
         this.keyManager = new KeyManager(key);
+        keyManager.printKey();
+        keyManager.printRoundKeys();
+
         String fullEncryptedData = "";
         for (int d = 0; d < data.length(); d += 16) {
             String dataBlock = data.substring(d, Math.min(data.length(), d+16));
@@ -99,9 +102,258 @@ public class AES {
         return fullEncryptedData;
     }
 
+    // AES Encryption
+    /**
+     * Takes in plaintext data and key as strings
+     * Returns encrypted data as a base64 encoded string
+     * Processes data in 16-byte blocks, padding with null characters if necessary
+     * Includes print statements to walk through the encryption
+     * @param data The plaintext data to be encrypted
+     * @param key The encryption key
+     * @return The encrypted data as a base64 encoded string
+     */
+    public String encrypt(String data, String key, int level) {
+        this.keyManager = new KeyManager(key);
+        keyManager.printKey();
+        keyManager.printRoundKeys();
+
+        System.out.println("\n*********** Encrypting ***********");
+
+        String fullEncryptedData = "";
+        for (int d = 0; d < data.length(); d += 16) {
+            String dataBlock = data.substring(d, Math.min(data.length(), d+16));
+            System.out.println("Substring " + (d/16 + 1) + ": " + dataBlock);
+            
+            if(dataBlock.length() < 16){
+                int paddingCount = 0;
+
+                while (dataBlock.length() < 16) {
+                    dataBlock += "\0"; // padding with null characters]
+                    paddingCount++;
+                }
+
+                System.out.println("Substring " + (d/16 + 1) + " is not 16 characters. To make it meet the required length, " + paddingCount + " null characters have been added to the end of the string.");
+            }
+            this.currentRoundNum = 0;
+
+            System.out.println("\nRound " + currentRoundNum + ":");
+
+            System.out.println("Take the substring and arrange it in a four by four array. During this step, each character becomes a double.");
+            this.dataArray = new double[4][4];
+            for (int i = 0; i < dataBlock.length(); i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = dataBlock.charAt(i);
+
+                if(dataBlock.charAt(i) == '\0'){
+                    System.out.println("null character --> " + dataArray[row][col]);
+                }
+                else if(dataBlock.charAt(i) == ' '){
+                    System.out.println("space --> " + dataArray[row][col]);
+                }
+                else if(dataBlock.charAt(i) == '\n'){
+                    System.out.println("new line --> " + dataArray[row][col]);
+                }
+                else{
+                    System.out.println(dataBlock.charAt(i) + " --> " + dataArray[row][col]);
+                }
+            }
+
+            System.out.println("\nThis creates the following array:");
+            for(int row = 0; row < 4; row ++){
+                for(int col = 0; col < 4; col++){
+                    if(col != 3){
+                        System.out.print(dataArray[row][col] + " ");
+                    }
+                    else{
+                        System.out.println(dataArray[row][col]);
+                    }
+                }
+            }
+
+            System.out.println("\nThe array gets converted into a matrix and roundkey " + currentRoundNum + " gets added to the matrix using XOR.");
+            this.dataMatrix = new Matrix(dataArray);
+            AddRoundKey();
+            PrintMatrix();
+
+            for (currentRoundNum = 1; currentRoundNum < roundNum; currentRoundNum++) {
+                System.out.println("\nRound " + currentRoundNum + ":");
+                
+                ByteSubstitution();
+                System.out.println("Byte Subsitution:");
+                PrintMatrix();
+
+                ShiftRows();
+                System.out.println("\nShift Rows:");
+                PrintMatrix();
+
+                MixColumns();
+                System.out.println("\nMix Columns:");
+                PrintMatrix();
+
+                AddRoundKey();
+                System.out.println("\nAdd Round Key " + currentRoundNum + ":");
+                PrintMatrix();
+            }
+            System.out.println("\nRound " + currentRoundNum + ":");
+            ByteSubstitution();
+            System.out.println("Byte Subsitution:");
+            PrintMatrix();
+
+            ShiftRows();
+            System.out.println("\nShift Rows:");
+            PrintMatrix();
+            
+            AddRoundKey();
+            System.out.println("\nAdd Round Key:");
+            PrintMatrix();
+
+            // convert matrix back into ciphertext
+            System.out.println("\nConvert matrix into ciphertext:");
+            dataArray = dataMatrix.getArray();
+            byte[] cipherBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                cipherBytes[i] = (byte) dataArray[row][col];
+                System.out.println(dataArray[row][col] + " --> " + cipherBytes[i]);
+            }
+            
+            // convert ciphertext into base64 string and store in var
+            String encryptedData = java.util.Base64.getEncoder().encodeToString(cipherBytes);
+            System.out.println("\nConvert ciphertext back to a string: " + encryptedData);
+            
+            System.out.println("Add encrypted substring to previously encrypted string: \"" + fullEncryptedData + "\"");
+            fullEncryptedData += encryptedData;
+            System.out.println("Current encrypted data: " + fullEncryptedData + "\n\n");
+        }
+        return fullEncryptedData;
+    }
+
     // AES Decryption 
-    // Not sure what the encryption section looks like so feel free to modify
     // Added a helper section down at line 141 from readability
+    public String decrypt(String encryptedData, String key, int level) {
+        // use key from key manager
+        this.keyManager = new KeyManager(key);
+        this.currentRoundNum = roundNum; // start at round 10 (final)
+
+        System.out.println("\n\n\n*********** Decrypting ***********");
+
+        String fullDecryptedData = "";
+        // for (int d = 0; d < encryptedData.length(); d += 24) {
+        //     String dataBlock = encryptedData.substring(d, Math.min(encryptedData.length(), d+24));
+        //     System.out.println("Substring " + (d/24 + 1) + ": " + dataBlock);
+        //Going to try doing the whole thing backwards
+        int stringCount = 0;
+        for (int d = encryptedData.length(); d > 0; d -=24){
+            currentRoundNum = 10;
+            String dataBlock = encryptedData.substring(Math.max(0, d-24), d);
+            stringCount++;
+            System.out.println("Substring " + stringCount + ": " + dataBlock);
+            if(dataBlock.length() < 16){
+                int paddingCount = 0;
+
+                while (dataBlock.length() < 16) {
+                    dataBlock += "\0"; // padding with null characters]
+                    paddingCount++;
+                }
+
+                System.out.println("Substring " + (d/16 + 1) + " is not 16 characters. To make it meet the required length, " + paddingCount + " null characters have been added to the end of the string.");
+            }
+            
+            byte[] cipherBytes = java.util.Base64.getDecoder().decode(dataBlock);
+            System.out.print("\nConvert string back to ciphertext: ");
+
+            for(int i = 0; i < cipherBytes.length; i++){
+                if(i != cipherBytes.length - 1){
+                    System.out.print(cipherBytes[i] + " ");
+                }
+                else{
+                    System.out.println(cipherBytes[i]);
+                }
+            }
+            
+            // Load cipher into 4x4 matrix
+            System.out.println("\nArrange the ciphertext in a four by four array:");
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                dataArray[row][col] = (i < cipherBytes.length) ? cipherBytes[i] & 0xFF : 0;
+            }
+
+            //Print out the matrix
+            for(int row = 0; row < 4; row ++){
+                for(int col = 0; col < 4; col++){
+                    if(col != 3){
+                        System.out.print(dataArray[row][col] + " ");
+                    }
+                    else{
+                        System.out.println(dataArray[row][col]);
+                    }
+                }
+            }
+
+            dataMatrix = new Matrix(dataArray);
+            System.out.println("\nThe array gets converted into a matrix and roundkey " + currentRoundNum + " gets added to the matrix using XOR.");
+            AddRoundKey(); // final round key
+            PrintMatrix();
+
+            // inverse transformation, for final [inverse shiftrows + inverse subbytes]
+            InvShiftRows();
+            System.out.println("\nShift rows in the opposite direction.");
+            PrintMatrix();
+
+            InvByteSubstitution();
+            System.out.println("\nSubstitute bytes with the inverted SBox.");
+            PrintMatrix();
+
+            // run the decryption for round 1-9
+            System.out.println("\nShifting, byte substitution, and mixing columns will all be done in the opposite direction of encryption.");
+            for (currentRoundNum = roundNum - 1; currentRoundNum > 0; currentRoundNum--) {
+                System.out.println("\nRound " + (roundNum - currentRoundNum) + ":");
+
+                AddRoundKey();
+                System.out.println("Add Round Key " + currentRoundNum + ":");
+                PrintMatrix();
+
+                InvMixColumns();
+                System.out.println("\nMix Columns:");
+                PrintMatrix();
+
+                InvShiftRows();
+                System.out.println("\nShift Rows:");
+                PrintMatrix();
+
+                InvByteSubstitution();
+                System.out.println("\nByte Subsitution:");
+                PrintMatrix();
+            }
+            AddRoundKey(); //round 0 key
+            System.out.println("Add Round Key " + currentRoundNum + ":");
+            PrintMatrix();
+
+            // convert matrix back into plaintext
+            System.out.println("\nConvert matrix into plaintext:");
+            dataArray = dataMatrix.getArray();
+            byte[] plainBytes = new byte[16];
+            for (int i = 0; i < 16; i++) {
+                int row = i % 4;
+                int col = i / 4;
+                plainBytes[i] = (byte) dataArray[row][col];
+                System.out.println(plainBytes[i] + " --> " + dataArray[row][col]);
+            }
+            
+            // convert plaintext into str and store in var
+            String decryptedData = new String(plainBytes).trim();
+            System.out.println("\nConvert plaintext back to a string: " + decryptedData);
+            //fullDecryptedData += decryptedData;
+            //Doing it backwards
+            fullDecryptedData = decryptedData + fullDecryptedData;
+            System.out.println("Current encrypted data: " + fullDecryptedData + "\n\n");
+        }
+        return fullDecryptedData;
+    }
+
     public String decrypt(String encryptedData, String key) {
         // use key from key manager
         this.keyManager = new KeyManager(key);
@@ -153,8 +405,6 @@ public class AES {
         }
         return fullDecryptedData;
     }
-
-
 
 
     // AES ENCRYPTION HELPERS
@@ -333,6 +583,21 @@ public class AES {
             b >>= 1;
         }
         return p & 0xFF;
+    }
+
+    public void PrintMatrix(){
+        double[][] printArray = dataMatrix.getArray();
+
+                for(int row = 0; row < 4; row ++){
+                    for(int col = 0; col < 4; col++){
+                        if(col != 3){
+                            System.out.print(printArray[row][col] + " ");
+                        }
+                        else{
+                            System.out.println(printArray[row][col]);
+                        }
+                    }
+                }
     }
 }
 

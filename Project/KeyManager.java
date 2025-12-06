@@ -77,6 +77,7 @@ public class KeyManager {
         // Make sure that the size of the string is correct. If not, either cut it or add characters.
         keyString = setCorrectStringKeySize(keyString);
         this.key = getByteKeyFromString(keyString);
+
         this.roundKeys = generateRoundKeys(this.key);
     }
 
@@ -215,6 +216,39 @@ public class KeyManager {
      */
     public byte[] getRoundKey(int index){
         return roundKeys[index];
+    }
+
+    /**
+     * Prints the key converted into bytes to the console
+     */
+    public void printKey(){
+        System.out.print("\nKey in bytes: ");
+        for(int i = 0; i < 16; i++){
+            if(i != 15){
+                System.out.print(key[i] + " ");
+            }
+            else{
+                System.out.println(key[i]);
+            }
+        }
+    }
+
+    /**
+     * Prints out each round key to the console
+     */
+    public void printRoundKeys(){
+        System.out.println("\nRound keys:");
+        for(int i = 1; i < 11; i++){
+            System.out.print("Round key " + i + ": ");
+            for(int j = 0; j < 16; j++){
+                if(j != 15){
+                    System.out.print(roundKeys[i][j] + " ");
+                }
+                else{
+                    System.out.println(roundKeys[i][j]);
+                }
+            }
+        }
     }
 
     /**

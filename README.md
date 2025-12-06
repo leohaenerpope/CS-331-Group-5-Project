@@ -18,3 +18,14 @@ By encrypting and decrypting with AES, if attackers intercept data, they are ult
 unable to use it because only those with specific knowledge of the keys are able to
 decrypt and see what the information actually is. This project will provide more
 information about the usage and importance of cryptosystems like AES.
+
+## Usage
+
+This program has the option for user input. You can run it with:
+
+java MainProject.java [\<demonstrationLevel>]
+
+\<demonstrationLevel>\: 0 ==> Print out each step of the AES process from start to finish
+</p>
+
+
