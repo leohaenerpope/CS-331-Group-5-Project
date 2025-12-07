@@ -23,9 +23,10 @@ information about the usage and importance of cryptosystems like AES.
 
 This program has the option for user input. You can run it with:
 
-java MainProject.java [\<demonstrationLevel>]
+java MainProject.java \[\<demonstrationLevel>]
 
-\<demonstrationLevel>\: 0 ==> Print out each step of the AES process from start to finish
-</p>
+\<demonstrationLevel>:  
+- 0 ==> Print out each step of the AES process from start to finish 
+- 1 ==> Print out the round keys, encrypted text, decrypted text, and checks if the decrypted text matches the original
 
 
